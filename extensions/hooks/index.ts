@@ -15,7 +15,7 @@
  *
  * A hook can block anything, loaders included (tool_search/skill/
  * structured_output) — full CC fidelity, the user's config is the user's
- * choice; see docs/pi-notes.md for the foot-gun note. A hook can never
+ * choice; see docs/findings.md for the foot-gun note. A hook can never
  * pre-approve: "allow" is informational and the permission gate still runs.
  *
  * pi's emitToolCall has no try/catch around handlers, so every hook dispatch
