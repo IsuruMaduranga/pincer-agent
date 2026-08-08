@@ -96,6 +96,23 @@ export function themeNames(packageThemesDir: string): string[] {
 	}
 }
 
+/**
+ * Whether pincer should default thinking blocks to collapsed (the Claude Code
+ * look: a one-line label, expanded on demand). Only when the user has never
+ * chosen: a `hideThinkingBlock` key in pi's global settings — written by
+ * ctrl+t, /settings, or a previous run of this default — is their decision and
+ * is never overridden. An unreadable settings file means "don't touch it".
+ */
+export function shouldDefaultHideThinking(settingsRaw: string | undefined): boolean {
+	if (settingsRaw === undefined) return true;
+	try {
+		const settings = JSON.parse(settingsRaw);
+		return !(settings && typeof settings === "object" && "hideThinkingBlock" in settings);
+	} catch {
+		return false;
+	}
+}
+
 /** True when pi's own startup listing is silenced, so ours should render instead. */
 export function quietStartupEnabled(piSettingsPath: string): boolean {
 	try {

@@ -13,10 +13,12 @@
  * Set `CC_NO_BANNER=1` to keep pi's original header.
  */
 
+import { existsSync, readFileSync } from "node:fs";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { getAgentDir, SettingsManager } from "@earendil-works/pi-coding-agent";
 import {
 	PERMISSION_STATUS_CHANNEL,
 	permissionModeDisplay,
@@ -24,7 +26,10 @@ import {
 	shortModelName,
 } from "../permissions/modes.ts";
 import { SUBAGENT_STATUS_CHANNEL, type SubagentStatus } from "../subagents/model-select.ts";
-import { collectStartupSections, quietStartupEnabled, type StartupSection } from "./startup.ts";
+import { collectStartupSections, quietStartupEnabled, shouldDefaultHideThinking, type StartupSection } from "./startup.ts";
+import { truncateLine } from "../lib/tui-render.ts";
+
+export { truncateLine };
 
 const NAME = "pincer";
 
@@ -56,79 +61,62 @@ export const LOGO_LINES = [
 ];
 
 /**
- * pi's default keybindings (core/keybindings.ts) plus our own input prefixes
- * and commands, grouped one line each: session control, then everything that
- * changes what the model sees or does, then editor/clipboard conveniences.
+ * One curated hint line, not a keymap dump: only the controls someone cannot
+ * discover on their own — the dials this package renames or hides state behind
+ * (effort, permission mode, collapsed thinking/output) plus the two input
+ * prefixes and the opt-in keyword nobody could guess. Everything else lives in
+ * pi's own /hotkeys listing, which the line points at.
  */
-const HINT_LINES: [key: string, what: string][][] = [
-	[
-		// pi calls this dial "thinking" and reserves shift+tab for it; we present
-		// it as Claude Code's "effort" so the key and /effort agree on the name.
-		["shift+tab", "cycle effort"],
-		["/effort", "effort + ultracode"],
-		["ctrl+l", "model"],
-		["ctrl+p", "cycle model"],
-		// Claude Code cycles permission modes on shift+tab; pi owns that key, and
-		// ctrl+q is the one ctrl+letter both pi and terminals leave free.
-		["ctrl+q", "permission mode"],
-		["ctrl+t", "thinking blocks"],
-		["ctrl+o", "tool output"],
-	],
-	[
-		["ctrl+g", "external editor"],
-		["ctrl+v", "paste image"],
-		["ctrl+x", "copy"],
-		["alt+enter", "follow-up"],
-		["ctrl+z", "suspend"],
-	],
-	[
-		["escape", "interrupt"],
-		["ctrl+c/ctrl+d", "clear/exit"],
-		["/", "commands"],
-		["!", "bash"],
-		// A keyword rather than a binding, but this is the line for "type this,
-		// get that" — and an opt-in feature nobody knows the word for is invisible.
-		["ultracode", "multi-agent workflow"],
-	],
+const HINTS: [key: string, what: string][] = [
+	// First so it survives narrow terminals: the pointer to everything else.
+	["/hotkeys", "all keys"],
+	// pi calls this dial "thinking" and reserves shift+tab for it; we present
+	// it as Claude Code's "effort" so the key and /effort agree on the name.
+	["shift+tab", "effort"],
+	// Claude Code cycles permission modes on shift+tab; pi owns that key, and
+	// ctrl+q is the one ctrl+letter both pi and terminals leave free.
+	["ctrl+q", "permissions"],
+	["ctrl+t", "thinking"],
+	["ctrl+o", "expand output"],
+	["/", "commands"],
+	["!", "bash"],
+	// A keyword rather than a binding — an opt-in feature nobody knows the
+	// word for is invisible.
+	["ultracode", "max effort"],
 ];
 
 /**
- * Cut a painted line to `width` visible columns without splitting ANSI escape
- * sequences, ending with an ellipsis and a reset so truncation cannot leak a
- * colour into the next line. pi-tui *crashes* the whole app on an overwide
- * line ("Rendered line exceeds terminal width"), and only validates a
- * component when its output changes — so the overflow hid in the static
- * banner until the mode line became live and re-renders began.
+ * Keep only whole leading items that fit the budget (measured unpainted, so
+ * ANSI codes don't count), rather than letting truncateLine cut mid-word.
+ * Always keeps at least one item; truncateLine remains the backstop.
  */
-export function truncateLine(line: string, width: number): string {
-	if (width <= 0) return "";
-	const ANSI = /^\x1b\[[0-9;]*m/;
-	let visible = 0;
-	for (let i = 0; i < line.length; ) {
-		const escape = line.slice(i).match(ANSI);
-		if (escape) {
-			i += escape[0].length;
-			continue;
-		}
-		visible++;
-		i++;
-	}
-	if (visible <= width) return line;
-
-	let out = "";
+export function fitItems<T>(items: T[], plainLength: (item: T) => number, budget: number | undefined, sepLength = 3): T[] {
+	if (budget === undefined) return items;
+	const kept: T[] = [];
 	let used = 0;
-	for (let i = 0; i < line.length && used < width - 1; ) {
-		const escape = line.slice(i).match(ANSI);
-		if (escape) {
-			out += escape[0];
-			i += escape[0].length;
-			continue;
-		}
-		out += line[i];
-		used++;
-		i++;
+	for (const item of items) {
+		const extra = (kept.length ? sepLength : 0) + plainLength(item);
+		if (kept.length > 0 && used + extra > budget) break;
+		kept.push(item);
+		used += extra;
 	}
-	return `${out}\x1b[0m…`;
+	return kept;
+}
+
+/**
+ * Sections compressed to one line: context files and themes are few and short,
+ * so their names carry information; skills/workflows lists are long and get
+ * truncated into noise, so past three items they collapse to a count.
+ */
+export function sectionSummary(sections: StartupSection[], paint: (color: string, text: string) => string): string {
+	return sections
+		.filter((s) => s.items.length > 0)
+		.map((s) =>
+			s.items.length <= 3
+				? `${paint("muted", s.label)} ${paint("dim", s.items.join(", "))}`
+				: `${paint("muted", s.label)} ${paint("dim", String(s.items.length))}`,
+		)
+		.join(paint("muted", " · "));
 }
 
 /** Kept pure so the layout is unit-testable without a terminal. */
@@ -137,13 +125,14 @@ export function bannerLines(
 	paint: (color: string, text: string) => string,
 	width?: number,
 ): string[] {
+	const logoWidth = Math.max(...LOGO_LINES.map((art) => [...art].length));
 	const title = `${paint("accent", NAME)} ${paint("dim", `v${input.version}`)}`;
 	const subtitle = paint("dim", "the Claude Code experience, on the pi harness");
-	const hints = HINT_LINES.map((line) =>
-		line
-			.map(([key, what]) => `${paint("accent", key)} ${paint("muted", what)}`)
-			.join(paint("muted", " · ")),
-	);
+	// Narrow terminals drop whole trailing hints (the /hotkeys pointer is
+	// first, so it always survives) instead of cutting one mid-word.
+	const hints = fitItems(HINTS, ([key, what]) => key.length + 1 + what.length, width === undefined ? undefined : width - logoWidth - 2)
+		.map(([key, what]) => `${paint("accent", key)} ${paint("muted", what)}`)
+		.join(paint("muted", " · "));
 
 	const context = [
 		input.model ? `${paint("muted", "model")} ${input.model}` : undefined,
@@ -153,18 +142,43 @@ export function bannerLines(
 		.filter(Boolean)
 		.join(paint("muted", " · "));
 
-	const sections = (input.sections ?? []).map(
-		(s) => `${paint("accent", s.label)} ${paint("dim", s.items.join(", "))}`,
-	);
+	const sections = sectionSummary(input.sections ?? [], paint);
 
-	const text = [`${title}  ${subtitle}`, ...hints, context, ...sections];
-	const logoWidth = Math.max(...LOGO_LINES.map((art) => [...art].length));
+	const text = [`${title}  ${subtitle}`, context, hints, ...(sections ? [sections] : [])];
 	const blankArt = " ".repeat(logoWidth);
 	const assembled = text.map((line, i) => `${paint("accent", LOGO_LINES[i] ?? blankArt)}  ${line}`);
 	return width === undefined ? assembled : assembled.map((line) => truncateLine(line, width));
 }
 
+/** Collapsed-thinking placeholder — pi paints it in thinkingText + italic. */
+const THINKING_LABEL = "✻ Thinking… (ctrl+t to expand)";
+
+/**
+ * Default thinking blocks to collapsed, once, respecting any user choice.
+ * pi caches settings in memory at startup, so a write here lands from the
+ * *next* session; the current one keeps whatever the file said at launch
+ * (ctrl+t still works immediately and persists the user's own preference).
+ */
+function applyThinkingDefault(): void {
+	try {
+		const agentDir = getAgentDir();
+		const settingsPath = join(agentDir, "settings.json");
+		const raw = existsSync(settingsPath) ? readFileSync(settingsPath, "utf8") : undefined;
+		if (shouldDefaultHideThinking(raw)) {
+			SettingsManager.create(process.cwd(), agentDir).setHideThinkingBlock(true);
+		}
+	} catch {
+		// Presentation-only default — never let a settings hiccup break startup.
+	}
+}
+
 export default function brandingExtension(pi: ExtensionAPI) {
+	applyThinkingDefault();
+	// The label applies in every session; CC_NO_BANNER only disables the header.
+	pi.on("session_start", (_event, ctx) => {
+		ctx.ui.setHiddenThinkingLabel(THINKING_LABEL);
+	});
+
 	if (process.env.CC_NO_BANNER === "1") return;
 
 	/**

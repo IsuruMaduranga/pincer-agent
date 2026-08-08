@@ -11,6 +11,7 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { REMINDER_CHANNEL } from "../lib/reminders.ts";
+import { ccToolRenderers } from "../lib/tui-render.ts";
 
 interface TodoItem {
 	content: string;
@@ -105,6 +106,10 @@ export default function todoExtension(pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "todo_write",
 		label: "Todos",
+		...ccToolRenderers<{ todos?: unknown[] }>("Todos", {
+			title: (a) => (a?.todos ? `${a.todos.length} items` : undefined),
+			maxCollapsedLines: 12,
+		}),
 		description:
 			"Create and manage a structured task list for the current session. Each call REPLACES the entire list. Use for multi-step tasks (3+ steps): mark exactly one item in_progress before starting it, mark it completed immediately when done, and keep the list current rather than batching updates.",
 		promptSnippet: "Track multi-step task progress with a todo list",

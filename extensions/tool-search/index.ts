@@ -28,6 +28,7 @@ import {
 } from "../lib/deferred.ts";
 import { resolveModelTier } from "../lib/model-tier.ts";
 import { REMINDER_CHANNEL } from "../lib/reminders.ts";
+import { ccToolRenderers } from "../lib/tui-render.ts";
 
 export default function toolSearchExtension(pi: ExtensionAPI) {
 	let sessionStarted = false;
@@ -96,6 +97,7 @@ export default function toolSearchExtension(pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "tool_search",
 		label: "Tool Search",
+		...ccToolRenderers("Tool Search"),
 		description:
 			"Load the schemas of tools that are available but not yet callable. Query forms: `select:<name>[,<name>]` to load exact tools by name, `+<term> <words>` to require a term in the tool name, or plain keywords to search. Returns the tools that are now callable.",
 		promptSnippet: "Load additional tool schemas on demand",

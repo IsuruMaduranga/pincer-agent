@@ -20,6 +20,7 @@ import { Type } from "typebox";
 import { DEFER_CHANNEL } from "../lib/deferred.ts";
 import { REMINDER_CHANNEL } from "../lib/reminders.ts";
 import { rewriteToolInput, validateWorktreeName } from "./rewrite.ts";
+import { ccToolRenderers } from "../lib/tui-render.ts";
 
 const run = promisify(execFile);
 const REMINDER_KEY = "cc-worktree-session";
@@ -92,6 +93,7 @@ export default function worktreeExtension(pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "enter_worktree",
 		label: "Enter Worktree",
+		...ccToolRenderers("Enter Worktree"),
 		description:
 			"Create an isolated git worktree under .claude/worktrees/ (branched from the current HEAD) and switch this session into it — subsequent commands and relative paths run there. Use ONLY when the user or project instructions explicitly ask for a worktree. Pass `name` to name the new worktree, or `path` to switch into an existing worktree instead (mutually exclusive). Leave with exit_worktree.",
 		parameters: Type.Object({
@@ -176,6 +178,7 @@ export default function worktreeExtension(pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "exit_worktree",
 		label: "Exit Worktree",
+		...ccToolRenderers("Exit Worktree"),
 		description:
 			'End the worktree session started by enter_worktree and return to the original directory. action: "keep" leaves the worktree and branch on disk; "remove" deletes both — refused (listing the changes) if there are uncommitted files or commits not on the original branch, unless discard_changes is true. No-op when no worktree session is active.',
 		parameters: Type.Object({

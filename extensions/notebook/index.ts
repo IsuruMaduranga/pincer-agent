@@ -11,12 +11,14 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { DEFER_CHANNEL } from "../lib/deferred.ts";
+import { ccToolRenderers } from "../lib/tui-render.ts";
 import { applyEdit, type EditMode, parseNotebook } from "./notebook.ts";
 
 export default function notebookExtension(pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "notebook_edit",
 		label: "Notebook Edit",
+		...ccToolRenderers("Notebook Edit"),
 		description:
 			"Edit a Jupyter notebook (.ipynb): replace a cell's source, insert a new cell, or delete a cell. Cells are addressed by their `id`; read the notebook first to get ids. Editing a code cell clears its outputs.",
 		parameters: Type.Object({

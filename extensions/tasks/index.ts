@@ -13,6 +13,7 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { DEFER_CHANNEL } from "../lib/deferred.ts";
+import { ccToolRenderers } from "../lib/tui-render.ts";
 import { formatTaskDetails, formatTaskLine, formatTaskList, type TaskSnapshot, TaskStore } from "./store.ts";
 
 interface TaskDetails {
@@ -64,6 +65,7 @@ export default function tasksExtension(pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "task_create",
 		label: "Create Task",
+		...ccToolRenderers("Create Task"),
 		description:
 			"Add a task to the session's structured task list. Unlike todo_write (which replaces the whole list), tasks are addressable by id and can carry owners, metadata, and dependencies — use task_update to change status or link tasks, task_list/task_get to read them. Create tasks for multi-step work so progress is visible.",
 		parameters: Type.Object({
@@ -81,6 +83,7 @@ export default function tasksExtension(pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "task_get",
 		label: "Get Task",
+		...ccToolRenderers("Get Task"),
 		description: "Retrieve one task by id: full description, status, owner, and dependency links. Verify blockedBy is empty before starting work on it.",
 		parameters: Type.Object({
 			taskId: Type.String({ description: "The id of the task to retrieve" }),
@@ -95,6 +98,7 @@ export default function tasksExtension(pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "task_list",
 		label: "List Tasks",
+		...ccToolRenderers("List Tasks", { maxCollapsedLines: 12 }),
 		description: "List all tasks: id, subject, status, owner, and open blockers. Prefer working on unblocked pending tasks in id order.",
 		parameters: Type.Object({}),
 		async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
@@ -105,6 +109,7 @@ export default function tasksExtension(pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "task_update",
 		label: "Update Task",
+		...ccToolRenderers("Update Task"),
 		description:
 			"Update a task: status (pending/in_progress/completed, or deleted to remove it), subject, description, owner, metadata (merge; null deletes a key), and dependencies via addBlocks/addBlockedBy. Mark a task in_progress before starting it and completed only when fully done.",
 		parameters: Type.Object({

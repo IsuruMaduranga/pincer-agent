@@ -120,6 +120,14 @@ Full context: [`decisions/skills-plugins.md`](decisions/skills-plugins.md).
 
 - **[Skills and plugins](decisions/skills-plugins.md#skills-and-plugins)** — `~/.claude` + `.claude` skills/commands discovery, and Claude Code plugins contributing namespaced agents/skills/commands/MCP.
 
+## TUI
+
+Full context: [`decisions/tui.md`](decisions/tui.md).
+
+- **[Compact tool rendering — the Claude Code transcript look](decisions/tui.md#compact-tool-rendering-the-claude-code-transcript-look-unreviewed)** *(unreviewed)* — `●`/`⎿` call+result lines with ctrl+o collapse for every pincer tool, compact `✳` notification headlines, boxless theme, dimmer thinking text.
+- **[Thinking collapsed by default, expandable with ctrl+t](decisions/tui.md#thinking-collapsed-by-default-expandable-with-ctrlt-unreviewed)** *(unreviewed)* — pi's own `hideThinkingBlock` defaulted on (only when the user never chose), `✻ Thinking…` label via `setHiddenThinkingLabel`; the write lands next session (settings cached at startup).
+- **[Built-in tools joined the ● language; banner cut to four lines](decisions/tui.md#built-in-tools-joined-the--language-banner-cut-to-four-lines-unreviewed)** *(unreviewed)* — `tool-style` wraps pi's read/write/edit/grep/find/ls renderers (`● Label(arg)` + base result under a `⎿` elbow, edit's diff preview kept); one curated hint line, sections as counts, warnings point at /lsp & /mcp.
+
 ## Hooks
 
 Full context: [`decisions/hooks.md`](decisions/hooks.md).

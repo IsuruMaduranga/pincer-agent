@@ -50,6 +50,7 @@ import { type AgentRunRecord, nextRunName, RunRegistry } from "./runs.ts";
 import { emptyUsage, formatUsage, type UsageTotals } from "./usage.ts";
 import { cleanupWorktree, createWorktree, isGitRepo, type Worktree } from "./worktree.ts";
 import { systemNotification } from "../lib/notifications.ts";
+import { ccToolRenderers, customMessageText, notificationComponent } from "../lib/tui-render.ts";
 
 const MAX_PARALLEL = 4;
 
@@ -253,6 +254,14 @@ export default function subagentsExtension(pi: ExtensionAPI) {
 		for (const child of liveChildren) child.kill();
 	});
 
+	// Compact transcript rendering for the notifications this extension injects
+	// (full body on ctrl+o); the verbose framing stays model-only.
+	for (const customType of ["subagent-message", "subagent-result"]) {
+		pi.registerMessageRenderer(customType, (message, { expanded }, theme) =>
+			notificationComponent(theme, customMessageText(message.content), expanded),
+		);
+	}
+
 	const notify = (customType: string, text: string, details: Record<string, unknown>) => {
 		pi.sendMessage(
 			{ customType, content: [{ type: "text", text }], display: true, details },
@@ -368,6 +377,14 @@ export default function subagentsExtension(pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "subagent",
 		label: "Subagent",
+		...ccToolRenderers<{ agent?: string; task?: string; tasks?: unknown[]; action?: string }>("Subagent", {
+			title: (a) =>
+				a?.tasks?.length
+					? `${a.agent ?? "agents"} × ${a.tasks.length}`
+					: a
+						? [a.agent, a.task ?? a.action].filter(Boolean).join(": ")
+						: undefined,
+		}),
 		description:
 			"Delegate a task to a specialist agent that runs in its own context window and reports back. Use it for well-scoped work whose intermediate output you don't need — broad codebase searches, focused reviews, independent research. Give a complete, self-contained task: the agent cannot ask follow-up questions. The available agents are listed in the \"Available agents\" system reminder. Pass `tasks` to run several in parallel, `agent: \"fork\"` for a child that inherits this conversation (a fork always runs on this conversation's model and reasoning settings; if you are the fork, execute your assigned task directly — don't re-delegate), `isolation: \"worktree\"` when parallel agents will edit files, or `run_in_background: true` to keep working while it runs (completion arrives as a notification; manage with task_output/task_stop). Each run gets a name — continue a finished agent later with send_message. action:'list' re-prints the agent catalog.",
 		promptSnippet: "Delegate scoped work to a specialist agent in its own context",
@@ -742,6 +759,9 @@ export default function subagentsExtension(pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "send_message",
 		label: "Send Message",
+		...ccToolRenderers<{ to?: string; summary?: string; message?: string }>("Send Message", {
+			title: (a) => (a?.to ? `to ${a.to}${a.summary ? `: ${a.summary}` : ""}` : undefined),
+		}),
 		description:
 			'Send a message to another agent. From the main conversation: address a previously spawned subagent by the name from its spawn result (or task id) — a resident background agent is reached live (mid-turn the message is steered into its current work; when idle it starts a new turn), a finished agent is resumed from its session file with full context; replies arrive as system notifications. From inside a subagent: use to: "main" to report progress, findings, or questions to the main conversation mid-run — your plain text output is NOT visible to it until you finish.',
 		// A background child's model must know it can report back; the parent keeps

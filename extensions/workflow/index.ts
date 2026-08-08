@@ -24,6 +24,7 @@ import { REMINDER_CHANNEL } from "../lib/reminders.ts";
 import { applicableSubagentDefault, loadSubagentDefault } from "../subagents/default-model.ts";
 import { discoverSavedWorkflows, findSavedWorkflow } from "./saved-workflows.ts";
 import { buildRunReport, WorkflowRunManager } from "./run-manager.ts";
+import { ccToolRenderers, customMessageText, notificationComponent } from "../lib/tui-render.ts";
 import { WorkflowScriptError } from "./types.ts";
 import { WorkflowWidget } from "./widget.ts";
 
@@ -193,9 +194,16 @@ export default function workflowExtension(pi: ExtensionAPI) {
 		);
 	};
 
+	pi.registerMessageRenderer("workflow-result", (message, { expanded }, theme) =>
+		notificationComponent(theme, customMessageText(message.content), expanded),
+	);
+
 	pi.registerTool({
 		name: "workflow",
 		label: "Workflow",
+		...ccToolRenderers<{ name?: string; scriptPath?: string; script?: string; resumeFromRunId?: string }>("Workflow", {
+			title: (a) => a?.name ?? a?.scriptPath ?? (a?.resumeFromRunId ? `resume ${a.resumeFromRunId}` : a?.script ? "inline script" : undefined),
+		}),
 		description: WORKFLOW_TOOL_DESCRIPTION,
 		promptSnippet: "Run a script that orchestrates many subagents (opt-in ultracode mode)",
 		parameters: WorkflowParams,

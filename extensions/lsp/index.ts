@@ -17,6 +17,7 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { DEFER_CHANNEL } from "../lib/deferred.ts";
+import { ccToolRenderers } from "../lib/tui-render.ts";
 import { LspClient } from "./client.ts";
 import { filterDiagnostics, formatDiagnostics, type SeverityFilter } from "./format.ts";
 import { findProjectRoot, serverForPath, typescriptPreflight } from "./servers.ts";
@@ -78,7 +79,11 @@ export default function lspExtension(pi: ExtensionAPI) {
 		const failure = startFailures.get(key);
 		if (failure && !warned.has(key)) {
 			warned.add(key);
-			notify(`LSP unavailable for ${match.languageId}: ${failure}`);
+			// Server errors run to paragraphs; the transcript gets one line and
+			// /lsp keeps the full status.
+			const brief = failure.split("\n")[0].replace(/\s+/g, " ").trim();
+			const capped = brief.length > 100 ? `${brief.slice(0, 99)}…` : brief;
+			notify(`LSP unavailable for ${match.languageId}: ${capped} (/lsp for status)`);
 		}
 	};
 
@@ -111,6 +116,7 @@ export default function lspExtension(pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "lsp_diagnostics",
 		label: "Diagnostics",
+		...ccToolRenderers("Diagnostics"),
 		description:
 			"Ask the language server for diagnostics (type errors, warnings) on a file. Reflects the file's current contents. Supported: TypeScript/JavaScript, Python, Go, Rust, Java — when that language's server is installed.",
 		parameters: Type.Object({

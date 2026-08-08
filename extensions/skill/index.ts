@@ -18,6 +18,7 @@ import { Type } from "typebox";
 import os from "node:os";
 import { join } from "node:path";
 import { discoverPlugins } from "../lib/plugins.ts";
+import { ccToolRenderers } from "../lib/tui-render.ts";
 
 interface IndexedSkill {
 	name: string;
@@ -63,6 +64,11 @@ export default function skillExtension(pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "skill",
 		label: "Skill",
+		...ccToolRenderers<{ skill?: string; args?: string }>("Skill", {
+			title: (a) => (a ? [a.skill, a.args].filter(Boolean).join(" ") : undefined),
+			// The full instruction text goes to the model; the transcript needs one line.
+			result: (_r, a, isError) => (isError ? undefined : a?.skill ? `Loaded ${a.skill}` : undefined),
+		}),
 		description:
 			"Invoke a skill: a packaged set of instructions for a particular kind of task. Call this when the task at hand matches an available skill, or when the user asks for one by name (including `/<name>`). Returns the skill's instructions to follow. Plugin skills are named `<plugin>:<skill>`. Use `list` to see what is available.",
 		promptSnippet: "Load packaged instructions for a task (see the skills listing)",

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { LOGO_LINES, bannerLines, truncateLine } from "../../extensions/branding/index.ts";
+import { LOGO_LINES, bannerLines, sectionSummary, truncateLine } from "../../extensions/branding/index.ts";
+import { shouldDefaultHideThinking } from "../../extensions/branding/startup.ts";
 
 // Identity paint keeps assertions about layout free of colour codes.
 const plain = (_color: string, text: string) => text;
@@ -12,41 +13,49 @@ describe("bannerLines", () => {
 		expect(title).toContain("the Claude Code experience, on the pi harness");
 	});
 
-	it("lists the key shortcuts across the hint lines", () => {
-		const hints = bannerLines({ version: "0.1.0", cwd: "/p", mode: "default" }, plain).join("\n");
-		for (const key of [
-			"shift+tab cycle effort",
-			"/effort effort + ultracode",
-			"ctrl+l model",
-			"ctrl+p cycle model",
-			"ctrl+q permission mode",
-			"ctrl+t thinking blocks",
-			"ctrl+o tool output",
-			"ctrl+g external editor",
-			"ctrl+v paste image",
-			"alt+enter follow-up",
-			"escape interrupt",
-			"ctrl+c/ctrl+d clear/exit",
+	it("keeps the hints to one curated line pointing at /hotkeys for the rest", () => {
+		const lines = bannerLines({ version: "0.1.0", cwd: "/p", mode: "default" }, plain);
+		const hintLines = lines.filter((l) => l.includes("shift+tab"));
+		expect(hintLines).toHaveLength(1);
+		for (const hint of [
+			"shift+tab effort",
+			"ctrl+q permissions",
+			"ctrl+t thinking",
+			"ctrl+o expand output",
 			"/ commands",
 			"! bash",
-			"ultracode multi-agent workflow",
+			"ultracode max effort",
+			"/hotkeys all keys",
 		]) {
-			expect(hints).toContain(key);
+			expect(hintLines[0]).toContain(hint);
 		}
 	});
 
 	it("shows the model when known and always the mode", () => {
 		const lines = bannerLines({ version: "0.1.0", model: "gpt-5.5", cwd: "/p", mode: "acceptEdits" }, plain);
-		const context = lines[lines.length - 1];
+		const context = lines[1];
 		expect(context).toContain("model gpt-5.5");
 		expect(context).toContain("mode acceptEdits");
 	});
 
 	it("omits the model line content when no model is resolved", () => {
 		const lines = bannerLines({ version: "0.1.0", cwd: "/p", mode: "default" }, plain);
-		const context = lines[lines.length - 1];
+		const context = lines[1];
 		expect(context).not.toContain("model");
 		expect(context).toContain("default");
+	});
+
+	it("summarizes long sections to counts and keeps short ones by name", () => {
+		const summary = sectionSummary(
+			[
+				{ label: "context", items: ["CLAUDE.md"] },
+				{ label: "skills", items: Array.from({ length: 12 }, (_v, i) => `skill-${i}`) },
+				{ label: "workflows", items: [] },
+				{ label: "themes", items: ["pincer", "pincer-light"] },
+			],
+			plain,
+		);
+		expect(summary).toBe("context CLAUDE.md · skills 12 · themes pincer, pincer-light");
 	});
 
 	it("applies the paint function it is given", () => {
@@ -107,5 +116,25 @@ describe("truncateLine", () => {
 		for (const line of lines) {
 			expect(visible(line)).toBeLessThanOrEqual(80);
 		}
+	});
+});
+
+describe("shouldDefaultHideThinking", () => {
+	it("defaults on when settings do not exist yet", () => {
+		expect(shouldDefaultHideThinking(undefined)).toBe(true);
+	});
+
+	it("defaults on when the key was never set", () => {
+		expect(shouldDefaultHideThinking("{}")).toBe(true);
+		expect(shouldDefaultHideThinking('{"quietStartup": true}')).toBe(true);
+	});
+
+	it("never overrides a user choice, in either direction", () => {
+		expect(shouldDefaultHideThinking('{"hideThinkingBlock": false}')).toBe(false);
+		expect(shouldDefaultHideThinking('{"hideThinkingBlock": true}')).toBe(false);
+	});
+
+	it("does not touch a settings file it cannot parse", () => {
+		expect(shouldDefaultHideThinking("{broken")).toBe(false);
 	});
 });

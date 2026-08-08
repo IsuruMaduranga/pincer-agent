@@ -13,6 +13,7 @@ import { spawn } from "node:child_process";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { DEFER_CHANNEL } from "../lib/deferred.ts";
+import { ccToolRenderers, customMessageText, notificationComponent } from "../lib/tui-render.ts";
 import {
 	type BackgroundTask,
 	BackgroundRegistry,
@@ -47,6 +48,15 @@ export default function backgroundExtension(pi: ExtensionAPI) {
 		lastCtx.ui.setWidget("cc-background", running > 0 ? [` background tasks: ${running} running`] : undefined);
 	};
 
+	// Harness-injected notifications carry anti-confabulation framing for the
+	// model; the transcript shows a compact headline instead (ctrl+o expands).
+	// One registration covers every emitter of the type (bash uses it too).
+	for (const customType of ["task-notification", "wakeup"]) {
+		pi.registerMessageRenderer(customType, (message, { expanded }, theme) =>
+			notificationComponent(theme, customMessageText(message.content), expanded),
+		);
+	}
+
 	const notify = (customType: string, text: string, details: Record<string, unknown>) => {
 		pi.sendMessage(
 			{ customType, content: [{ type: "text", text }], display: true, details },
@@ -57,6 +67,7 @@ export default function backgroundExtension(pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "monitor",
 		label: "Monitor",
+		...ccToolRenderers("Monitor"),
 		description:
 			"Start a background monitor that streams events from a long-running command. Each stdout line becomes a notification delivered to the conversation while you keep working; the command exiting ends the watch. Use for 'tell me every time X happens' (tail -f, polling loops); for a single completion signal prefer a subagent or a blocking command. Returns a task id — stop with task_stop, inspect with task_output. Alternatively pass `ws` to watch a WebSocket (each text frame is an event).",
 		parameters: Type.Object({
@@ -226,6 +237,7 @@ export default function backgroundExtension(pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "task_output",
 		label: "Task Output",
+		...ccToolRenderers("Task Output"),
 		description:
 			"Retrieve output from a running or finished background task (monitor, background subagent, or background bash) by task id. block=true (default) waits up to `timeout` ms for completion; block=false returns the current status immediately. You never need this just to learn that a task finished — completion always arrives as a system notification carrying the output; call this only when your next step needs the result now, or for a mid-run peek.",
 		parameters: Type.Object({
@@ -273,6 +285,7 @@ export default function backgroundExtension(pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "task_stop",
 		label: "Stop Task",
+		...ccToolRenderers("Stop Task"),
 		description: "Stop a running background task (monitor, background subagent, or background bash) by task id.",
 		parameters: Type.Object({
 			task_id: Type.String({ description: "The id of the background task to stop" }),
@@ -311,6 +324,9 @@ export default function backgroundExtension(pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "schedule_wakeup",
 		label: "Schedule Wakeup",
+		...ccToolRenderers<{ delaySeconds?: number; stop?: boolean }>("Schedule Wakeup", {
+			title: (a) => (a?.stop ? "stop" : a?.delaySeconds !== undefined ? `${a.delaySeconds}s` : undefined),
+		}),
 		description:
 			"Schedule when to resume work on a self-paced recurring task: after `delaySeconds` (clamped to [60, 3600]) the given prompt is delivered as a system notification and a new turn starts. One wakeup is pending at a time — scheduling again replaces it; {stop: true} cancels the loop. Do not use this to poll background tasks you started here — their completion already notifies you.",
 		parameters: Type.Object({

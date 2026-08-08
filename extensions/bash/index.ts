@@ -25,6 +25,7 @@ import { Type } from "typebox";
 import { generateTaskId, TASK_REGISTER_CHANNEL } from "../background/registry.ts";
 import { type BashFinishSummary, startBackgroundBash, tailCap } from "./background.ts";
 import { systemNotification } from "../lib/notifications.ts";
+import { ccWrapBuiltinRenderers, linesComponent, resultLines } from "../lib/tui-render.ts";
 
 const NOTIFY_OUTPUT_CAP = 30_000;
 
@@ -89,9 +90,27 @@ export default function bashExtension(pi: ExtensionAPI) {
 		description: `${base.description} Pass run_in_background: true for long-running commands (builds, servers, watches): it returns a task id immediately so you can keep working, completion arrives as a system notification, and the output is retrievable with task_output / stoppable with task_stop.`,
 		promptSnippet: base.promptSnippet,
 		promptGuidelines: base.promptGuidelines,
-		renderShell: base.renderShell,
 		executionMode: base.executionMode,
-		renderCall: base.renderCall as ToolDefinition<typeof BashParams>["renderCall"],
+		...(() => {
+			// `● Bash(cmd)` / elbow-indented output, like every other pincer tool.
+			// Not passing base.renderCall also drops its timer state, so the
+			// misleading "Took Ns" that counted permission-prompt wait disappears.
+			const wrapped = ccWrapBuiltinRenderers<{ command?: string }>("Bash", base, { title: (a) => a?.command });
+			return {
+				renderShell: wrapped.renderShell,
+				renderCall: wrapped.renderCall as ToolDefinition<typeof BashParams>["renderCall"],
+				renderResult: ((result, options, theme, context) => {
+					// A background start returns a model-facing instruction paragraph;
+					// the transcript needs one line (Claude Code: "Running in the background").
+					const details = result.details as { taskId?: string; logPath?: string } | undefined;
+					if (details?.taskId && !context.isError) {
+						const line = `Running in background (task ${details.taskId}${details.logPath ? ` · log: ${details.logPath}` : ""})`;
+						return linesComponent(() => resultLines(theme as any, line, options.expanded, false));
+					}
+					return wrapped.renderResult(result, options, theme, context);
+				}) as ToolDefinition<typeof BashParams>["renderResult"],
+			};
+		})(),
 		parameters: BashParams,
 		async execute(toolCallId, params, signal, onUpdate, ctx) {
 			if (!params.run_in_background) {

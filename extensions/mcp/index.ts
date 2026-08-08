@@ -18,6 +18,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { Type } from "typebox";
 import { DEFER_CHANNEL } from "../lib/deferred.ts";
 import { persistIfLarge } from "../lib/persisted-output.ts";
+import { ccToolRenderers } from "../lib/tui-render.ts";
 import {
 	callTool,
 	close,
@@ -71,6 +72,7 @@ export default function mcpExtension(pi: ExtensionAPI) {
 			pi.registerTool({
 				name,
 				label: `${connection.server.name}: ${tool.name}`,
+				...ccToolRenderers(`${connection.server.name}: ${tool.name}`),
 				description: tool.description ?? `MCP tool "${tool.name}" from server "${connection.server.name}".`,
 				parameters: jsonSchemaToTypeBox(tool.inputSchema),
 				async execute(toolCallId, params, _signal, _onUpdate, ctx) {
@@ -153,7 +155,7 @@ export default function mcpExtension(pi: ExtensionAPI) {
 
 		if (failures.length > 0 && ctx.hasUI) {
 			ctx.ui.notify(
-				failures.map((f) => `MCP server "${f.server.name}" failed: ${f.error}`).join("\n"),
+				failures.map((f) => `MCP server "${f.server.name}" failed: ${f.error}`).join("\n") + " (/mcp for status)",
 				"warning",
 			);
 		}
@@ -180,6 +182,7 @@ export default function mcpExtension(pi: ExtensionAPI) {
 		pi.registerTool({
 			name: "list_mcp_resources",
 			label: "MCP Resources",
+			...ccToolRenderers("MCP Resources"),
 			description:
 				"List resources exposed by connected MCP servers. Resources are readable documents or data the server offers, addressed by uri.",
 			parameters: Type.Object({
@@ -220,6 +223,7 @@ export default function mcpExtension(pi: ExtensionAPI) {
 		pi.registerTool({
 			name: "read_mcp_resource",
 			label: "Read MCP Resource",
+			...ccToolRenderers("Read MCP Resource"),
 			description: "Read one resource from an MCP server by uri. Use list_mcp_resources to find uris.",
 			parameters: Type.Object({
 				server: Type.String({ description: "Server name that owns the resource" }),
@@ -259,6 +263,7 @@ export default function mcpExtension(pi: ExtensionAPI) {
 		pi.registerTool({
 			name: "read_mcp_resource_dir",
 			label: "List MCP Resource Directory",
+			...ccToolRenderers("List MCP Resource Directory"),
 			description:
 				'List the direct children of a directory resource on an MCP server (resources/directory/read). Not recursive: each entry carries its own uri, and subdirectories appear with mimeType "inode/directory" — call again on a subdirectory uri to descend. Only servers that support directory listing accept this; others return an error.',
 			parameters: Type.Object({

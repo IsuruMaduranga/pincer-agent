@@ -18,6 +18,7 @@ import { Type } from "typebox";
 import { DEFER_CHANNEL } from "../lib/deferred.ts";
 import { htmlToMarkdown, isSameHost, normalizeUrl, paginate } from "./extract.ts";
 import { pickReaderModel, READER_MAX_TOKENS, readerMessages } from "./summarize.ts";
+import { ccToolRenderers } from "../lib/tui-render.ts";
 
 const DEFAULT_MAX_CHARS = 30_000;
 const CACHE_TTL_MS = 15 * 60 * 1000;
@@ -165,6 +166,7 @@ export default function webFetchExtension(pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "web_fetch",
 		label: "Web Fetch",
+		...ccToolRenderers("Web Fetch"),
 		description:
 			"Fetch a URL and return its readable content as markdown. Navigation and boilerplate are stripped. Pass `prompt` to have a small fast model answer it from the full page instead of returning the page itself — prefer that for long pages. Without `prompt`, long pages are windowed; pass `offset` to continue reading. Responses are cached for 15 minutes. Cross-host redirects are reported instead of followed; call again with the new URL to follow one.",
 		parameters: Type.Object({

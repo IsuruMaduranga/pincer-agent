@@ -12,6 +12,7 @@
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import { ccToolRenderers } from "../lib/tui-render.ts";
 import {
 	type Answer,
 	buildChoices,
@@ -62,6 +63,9 @@ export default function askUserExtension(pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "ask_user_question",
 		label: "Ask User",
+		...ccToolRenderers<{ questions?: Array<{ question?: string }> }>("Ask User", {
+			title: (a) => a?.questions?.[0]?.question,
+		}),
 		description:
 			"Ask the user to choose between options when you are blocked on a decision that is genuinely theirs — one you cannot resolve from the request, the code, or a sensible default. Ask up to four questions in one call; each gets a free-text 'Other' choice automatically. Do not use it for choices with an obvious default or for facts you can verify yourself.",
 		promptSnippet: "Ask the user to decide between options when genuinely blocked",

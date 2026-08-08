@@ -20,6 +20,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { Type } from "typebox";
 import { pincerStateDir } from "../lib/paths.ts";
 import { REMINDER_CHANNEL } from "../lib/reminders.ts";
+import { ccToolRenderers } from "../lib/tui-render.ts";
 import { PERMISSION_STATUS_CHANNEL, type PermissionStatus } from "../permissions/modes.ts";
 import { buildPlanModeReminder } from "./reminder.ts";
 import { randomSlug } from "./slug.ts";
@@ -80,6 +81,7 @@ export default function planModeExtension(pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "enter_plan_mode",
 		label: "Enter plan mode",
+		...ccToolRenderers("Enter plan mode"),
 		description:
 			"Enter plan mode for tasks that need investigation and design before changing anything. In plan mode only read-only tools are available, plus one writable file: the plan file whose path you are told, where you build the plan incrementally. Use for non-trivial multi-file work; skip it for simple direct changes.",
 		promptSnippet: "Switch to read-only planning before non-trivial changes",
@@ -106,6 +108,7 @@ export default function planModeExtension(pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "exit_plan_mode",
 		label: "Exit plan mode",
+		...ccToolRenderers("Exit plan mode"),
 		description:
 			"Signal that planning is complete and ask the user to approve the plan. Takes no parameters: the plan is read from the plan file named in the plan-mode reminder, which you must have written before calling this. The user reviews that file's contents.",
 		promptSnippet: "Present your plan file for user approval",
